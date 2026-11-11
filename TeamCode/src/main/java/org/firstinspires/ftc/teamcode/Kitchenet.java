@@ -10,6 +10,7 @@ import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
@@ -129,13 +130,10 @@ public class Kitchenet {
 
 
 
-    //Personal Config
-    public DcMotorEx llift;
-    public DcMotorEx rlift;
+
     public DcMotorEx intake;
     public DcMotorEx launcher;
 
-    public Limelight3A LL;
 
 
 
@@ -143,7 +141,6 @@ public class Kitchenet {
 
 
         //Drive Init
-
         laserrorheading = 0;
         intThingheading = 0;
         laserrordrive = 0;
@@ -154,22 +151,22 @@ public class Kitchenet {
         IntThingstrafe = 0;
         strafeerror = 0;
 
-        pDrive = 65;
+        pDrive = 70;
         iDrive = 0;
-        dDrive = 4;
+        dDrive = 5;
 //60,4
         //strafe p should be a bit higher than drive p as it is hard and d should be a bit lowwer
-        pStrafe = 60;
+        pStrafe = 75;
         iStrafe = 0;
-        dStrafe = 4;
+        dStrafe = 5;
 
-        pHeading = 22;
+        pHeading = 17;
         iHeading = 0;
-        dHeading = 3;
+        dHeading = 1;
 
         odoYawScalor = 1;
-        odoXoffSet = -5.75;
-        odoYoffSet = 2.6;
+        odoXoffSet = -6.5;
+        odoYoffSet = 3;
         odoCalabrasionSleep = 500;
 
         Eager = 1;
@@ -193,10 +190,10 @@ public class Kitchenet {
 
         odo.setOffsets(odoXoffSet, odoYoffSet, DistanceUnit.INCH);
         odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED);
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.FORWARD);
         //   odo.setYawScalar(odoYawScalor);
 
-        odo.recalibrateIMU();
+        odo.resetPosAndIMU();
         myOpMode.sleep(odoCalabrasionSleep);
 
         if (startpose != null) {
@@ -218,17 +215,12 @@ public class Kitchenet {
         //Personal Init
 
         intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        rlift = MotorMap( "rlift", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        llift = MotorMap( "llift", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
 
-        LL = myOpMode.hardwareMap.get(Limelight3A.class, "LL");
 
 
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        llift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rlift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
     }
@@ -241,7 +233,6 @@ public class Kitchenet {
         Timer.reset();
 
         //Personal Start Up
-        LL.pipelineSwitch(0);
 
     }
 
@@ -269,7 +260,7 @@ public class Kitchenet {
 
         odo.setOffsets(odoXoffSet, odoYoffSet);
         odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.REVERSED, GoBildaPinpointDriver.EncoderDirection.FORWARD);
         //odo.setYawScalar(odoYawScalor);
 
         odo.recalibrateIMU();
@@ -284,17 +275,10 @@ public class Kitchenet {
         //Personal Init
 
         intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        rlift = MotorMap( "rlift", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        llift = MotorMap( "llift", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
 
-        LL = myOpMode.hardwareMap.get(Limelight3A.class, "LL");
-
-
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        llift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        rlift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
@@ -376,7 +360,7 @@ public class Kitchenet {
         drivepid = DrivePID(pDrive, iDrive, dDrive, PureTargetVector.getX());
         strafepid = StrafePID(pStrafe, iStrafe, dStrafe, PureTargetVector.getY());
         headingpid = HeadingPID(pHeading,iHeading,dHeading, headingCurrent, headingTarget);
-
+//if weird issue down line we reversed heading pid
         drivevelocity = drivepid;
         strafevelocity = strafepid;
         headingvelocity = headingpid;
@@ -482,8 +466,11 @@ public class Kitchenet {
         myOpMode.telemetry.addData("headingerror ",headingerror);
         myOpMode.telemetry.addData("XTarget Vec ", PureTargetVector.getX());
         myOpMode.telemetry.addData("YTarget Vec ", PureTargetVector.getY());
+        myOpMode.telemetry.addData("YTarget Vec ", PureTargetVector.getY());
+
         myOpMode.telemetry.addData("drive volicirty ", drivevelocity);
         myOpMode.telemetry.addData("strafte velocity ", strafevelocity);
+        myOpMode.telemetry.addData("Heading Vec ", headingvelocity);
 
 
 

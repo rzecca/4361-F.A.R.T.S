@@ -16,6 +16,7 @@ import com.qualcomm.robotcore.hardware.VoltageSensor;
 import com.qualcomm.robotcore.util.ElapsedTime;
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
+import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
@@ -124,8 +125,8 @@ public class BIOBUZZv1 extends LinearOpMode {
     BIOBUZZv1.ActionState actionState = BIOBUZZv1.ActionState.IDLE;
     //TURRET CODE
     // Target coordinates in inches, using the same map as Pinpoint.
-    double TARGET_X = 83;
-    double TARGET_Y = 48;
+    double TARGET_X = 48;
+    double TARGET_Y = -83;
 
     // 435 RPM goBILDA Yellow Jacket.
     double MOTOR_TICKS_PER_REV = 384.5;
@@ -173,7 +174,6 @@ public class BIOBUZZv1 extends LinearOpMode {
             turret.setPower(0);
             return;
         }
-
         Pose2D pose = pinpoint.getPosition();
 
         double robotX = pose.getX(DistanceUnit.INCH);
@@ -268,7 +268,6 @@ public class BIOBUZZv1 extends LinearOpMode {
         DcMotorEx turret;
         turret = hardwareMap.get(DcMotorEx.class, "turret");
 
-
         Servo ramp;
         ramp = hardwareMap.get(Servo.class, "ramp");
         Servo stopper;
@@ -279,7 +278,17 @@ public class BIOBUZZv1 extends LinearOpMode {
 //        LL = hardwareMap.get(Limelight3A.class, "LL");
 //        Servo light;
 //        light = hardwareMap.get(Servo.class, "light");
+        //intake current switch
+        double INTAKE_CURRENT_LIMIT_AMPS = 9.5; // Tune for your intake.
+        double INTAKE_OVERLOAD_DELAY_SEC = 0.2;
 
+        boolean intakeOn = false;
+        boolean intakeTripped = false;
+        boolean intakeOverCurrent = false;
+        boolean lastIntakeA = false;
+        boolean lastIntakeReset = false;
+
+        ElapsedTime intakeOverloadTimer = new ElapsedTime();
 
 
         ControlHub_VoltageSensor = hardwareMap.get(VoltageSensor.class, "Control Hub");
@@ -307,6 +316,8 @@ public class BIOBUZZv1 extends LinearOpMode {
 
         turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        launcher.setDirection(DcMotorSimple.Direction.REVERSE);
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
 
 
 //        LL.start();
@@ -404,7 +415,7 @@ public class BIOBUZZv1 extends LinearOpMode {
             //tune
             //LAUNCHER PIDS
             double launcherP = .3;
-            double launcherD = .0;
+            double launcherD = .002;
             double launchererror = targetlauncher - launcherV;
             double derlauncherThing = launchererror - lastlaunchererror;
             double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherD);
@@ -412,7 +423,7 @@ public class BIOBUZZv1 extends LinearOpMode {
             launcher.setVelocity(launcheroutput);
             telemetry.addData("Launcher Velo", launcher.getVelocity());
 
-            targetlauncher = 1300;
+            targetlauncher = 1200 * 3.5;
 
 //button x
             if (gamepad1.x && txx) {
@@ -442,7 +453,49 @@ public class BIOBUZZv1 extends LinearOpMode {
             if (!sa) {
                 //second action
             }
-// button b
+// Detect one press, rather than repeatedly toggling while held.
+            boolean aPressed = gamepad1.a && !lastIntakeA;
+            boolean resetPressed = gamepad1.b && !lastIntakeReset;
+
+            lastIntakeA = gamepad1.a;
+            lastIntakeReset = gamepad1.b;
+
+// B resets the overload and leaves the intake OFF.
+            if (resetPressed) {
+                intakeTripped = false;
+                intakeOn = false;
+                intakeOverCurrent = false;
+                intakeOverloadTimer.reset();
+            } else if (aPressed && !intakeTripped) {
+                intakeOn = !intakeOn;
+            }
+
+            double intakeAmps = intake.getCurrent(CurrentUnit.AMPS);
+
+// Trip only when current stays above the limit for the delay.
+            if (intakeOn && !intakeTripped
+                    && intakeAmps > INTAKE_CURRENT_LIMIT_AMPS) {
+
+                if (!intakeOverCurrent) {
+                    intakeOverCurrent = true;
+                    intakeOverloadTimer.reset();
+                }
+
+                if (intakeOverloadTimer.seconds() >= INTAKE_OVERLOAD_DELAY_SEC) {
+                    intakeTripped = true;
+                    intakeOn = false;
+                }
+            } else {
+                intakeOverCurrent = false;
+                intakeOverloadTimer.reset();
+            }
+
+            intake.setPower(intakeOn && !intakeTripped ? 1.0 : 0.0);
+
+            telemetry.addData("Intake current (A)", intakeAmps);
+            telemetry.addData("Intake",
+                    intakeTripped ? "TRIPPED — press B"
+                            : intakeOn ? "ON" : "OFF");// button b
             if (gamepad1.b && tb) {
                 sb = !sb;
                 tb = false;

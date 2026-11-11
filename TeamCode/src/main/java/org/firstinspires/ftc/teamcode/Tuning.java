@@ -29,7 +29,7 @@ public class Tuning extends LinearOpMode {
         stuff.initializeAuto();
 
         stuff.telemetryupdate();
-
+        stuff.startlocation(0,0,0);
 
         waitForStart();
 
