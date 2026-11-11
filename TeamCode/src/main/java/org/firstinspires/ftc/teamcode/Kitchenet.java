@@ -4,7 +4,9 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.arcrobotics.ftclib.controller.PIDController;
 import com.arcrobotics.ftclib.geometry.Vector2d;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
@@ -23,6 +25,9 @@ public class Kitchenet {
 
 
     //Drive Config
+    private PIDController DriveController;
+    private PIDController StrafeController;
+
 
     public static double pDrive;
     public static double iDrive;
@@ -48,6 +53,8 @@ public class Kitchenet {
 
     public static double xTarget;
     public static double yTarget;
+    public static double PrexTarget;
+    public static double PreyTarget;
     public static double headingTarget;
 
 
@@ -61,6 +68,7 @@ public class Kitchenet {
     double laserrorstrafe;
     double IntThingstrafe;
     double strafeerror;
+
 
     public double xCurrent;
     public double yCurrent;
@@ -77,7 +85,15 @@ public class Kitchenet {
 
     public Vector2d PureErrorVector = new Vector2d(0,0);
     public Vector2d PureTargetVector = new Vector2d(0,0);
-
+    public Vector2d TargetPath;
+    public Vector2d PastPath;
+    public double TargetPathSqurd;
+    public double ScalarProj;
+    public Vector2d PointOnPath;
+    public Vector2d ToPath;
+    public Vector2d TrueError = new Vector2d(0,0);
+    public double Strict;
+    public double Eager;
 
     public ElapsedTime Timer;
     public int i = 1;
@@ -99,6 +115,8 @@ public class Kitchenet {
     public VoltageSensor ControlHub_VoltageSensor;
     public VoltageSensor ExpansionHub2_VoltageSensor;
 
+
+
     private LinearOpMode myOpMode;
 
     public Kitchenet(LinearOpMode opmode) {
@@ -109,13 +127,22 @@ public class Kitchenet {
 
 
 
+
+
     //Personal Config
+    public DcMotorEx llift;
+    public DcMotorEx rlift;
+    public DcMotorEx intake;
+    public DcMotorEx launcher;
+
+    public Limelight3A LL;
 
 
 
     public void initializeAuto(){
 
-    //Drive Init
+
+        //Drive Init
 
         laserrorheading = 0;
         intThingheading = 0;
@@ -127,40 +154,47 @@ public class Kitchenet {
         IntThingstrafe = 0;
         strafeerror = 0;
 
-        pDrive = 90;
+        pDrive = 65;
         iDrive = 0;
         dDrive = 4;
-
-        pStrafe = 70;
+//60,4
+        //strafe p should be a bit higher than drive p as it is hard and d should be a bit lowwer
+        pStrafe = 60;
         iStrafe = 0;
         dStrafe = 4;
 
-        pHeading = 40;
+        pHeading = 22;
         iHeading = 0;
-        dHeading = 0;
+        dHeading = 3;
 
-        odoYawScalor = 1.0012049;
-        odoXoffSet = -57.15;
-        odoYoffSet = -152.4;
+        odoYawScalor = 1;
+        odoXoffSet = -5.75;
+        odoYoffSet = 2.6;
         odoCalabrasionSleep = 500;
+
+        Eager = 1;
+        Strict = 1;
 
         DefaultSpeed = 1;
 
 
-        FrontLeft = MotorMap("FrontLeft", DcMotorEx.Direction.FORWARD, DcMotor.RunMode.RUN_USING_ENCODER);
-        FrontRight = MotorMap("FrontRight", DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_USING_ENCODER);
-        BackLeft = MotorMap( "BackLeft", DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_USING_ENCODER);
-        BackRight = MotorMap( "BackRight",DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_USING_ENCODER);
+        FrontLeft = MotorMap("FL", DcMotorEx.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        FrontRight = MotorMap("FR", DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        BackLeft = MotorMap( "BL", DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        BackRight = MotorMap( "BR",DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         ControlHub_VoltageSensor = myOpMode.hardwareMap.get(VoltageSensor.class, "Control Hub");
         ExpansionHub2_VoltageSensor = myOpMode.hardwareMap.get(VoltageSensor.class, "Expansion Hub 2");
 
-        odo = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class,"odo");
+        odo = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class,"pinpoint");
 
-        odo.setOffsets(odoXoffSet, odoYoffSet);
+        DriveController = new PIDController(pDrive,iDrive,dDrive);
+        StrafeController = new PIDController(pStrafe,iStrafe,dStrafe);
+
+        odo.setOffsets(odoXoffSet, odoYoffSet, DistanceUnit.INCH);
         odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
         odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED);
-        odo.setYawScalar(odoYawScalor);
+        //   odo.setYawScalar(odoYawScalor);
 
         odo.recalibrateIMU();
         myOpMode.sleep(odoCalabrasionSleep);
@@ -170,6 +204,8 @@ public class Kitchenet {
         } else {
             xTarget = 0;
             yTarget = 0;
+            PrexTarget = 0;
+            PreyTarget = 0;
             headingTarget = 0;
         }
 
@@ -181,43 +217,60 @@ public class Kitchenet {
 
         //Personal Init
 
+        intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        rlift = MotorMap( "rlift", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        llift = MotorMap( "llift", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
+
+        LL = myOpMode.hardwareMap.get(Limelight3A.class, "LL");
+
+
+        intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        llift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        rlift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
     }
 
 
     public void StartUpAuto(){
 
+
+        //Drive Start Up
         Timer.reset();
+
+        //Personal Start Up
+        LL.pipelineSwitch(0);
 
     }
 
 
     public void initializeTele(){
 
-    //Drive Init
+        //Drive Init
 
         Z_Weight = 0.75;
 
-        odoYawScalor = 1.0012049;
-        odoXoffSet = -57.15;
-        odoYoffSet = -152.4;
+        odoYawScalor = 1;
+        odoXoffSet = -147.64;
+        odoYoffSet = 63.50;
         odoCalabrasionSleep = 500;
 
-        FrontLeft = MotorMap("FrontLeft", DcMotorEx.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        FrontRight = MotorMap("FrontRight", DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        BackLeft = MotorMap( "BackLeft", DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        BackRight = MotorMap( "BackRight",DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        FrontLeft = MotorMap("FrontLeft", DcMotorEx.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        FrontRight = MotorMap("FrontRight", DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        BackLeft = MotorMap( "BackLeft", DcMotor.Direction.REVERSE, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        BackRight = MotorMap( "BackRight",DcMotor.Direction.FORWARD, DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
         ControlHub_VoltageSensor = myOpMode.hardwareMap.get(VoltageSensor.class, "Control Hub");
         ExpansionHub2_VoltageSensor = myOpMode.hardwareMap.get(VoltageSensor.class, "Expansion Hub 2");
 
-        odo = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class,"odo");
+        odo = myOpMode.hardwareMap.get(GoBildaPinpointDriver.class,"pinpoint");
 
         odo.setOffsets(odoXoffSet, odoYoffSet);
         odo.setEncoderResolution(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
-        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.REVERSED);
-        odo.setYawScalar(odoYawScalor);
+        odo.setEncoderDirections(GoBildaPinpointDriver.EncoderDirection.FORWARD, GoBildaPinpointDriver.EncoderDirection.FORWARD);
+        //odo.setYawScalar(odoYawScalor);
 
         odo.recalibrateIMU();
         myOpMode.sleep(odoCalabrasionSleep);
@@ -228,10 +281,21 @@ public class Kitchenet {
         FtcDashboard dashboard = FtcDashboard.getInstance();
 
 
-    //Personal Init
+        //Personal Init
+
+        intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        rlift = MotorMap( "rlift", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        llift = MotorMap( "llift", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
 
 
+        LL = myOpMode.hardwareMap.get(Limelight3A.class, "LL");
 
+
+        intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        llift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        rlift.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
 
@@ -240,6 +304,10 @@ public class Kitchenet {
 
         odo.update();
         Pose2D CurrentLocation = odo.getPosition();
+
+        xCurrent = CurrentLocation.getX(DistanceUnit.INCH);
+        yCurrent = -CurrentLocation.getY(DistanceUnit.INCH);
+        headingCurrent = -CurrentLocation.getHeading(AngleUnit.DEGREES);
 
         if (headingCurrent < 0) {
             headingCurrent = headingCurrent + 360;
@@ -273,7 +341,11 @@ public class Kitchenet {
 
 
     public void DriveUpdateAuto() {
-
+        double lastlaunchererror;
+        double targetlauncher;
+        double LAUNCHERVELO;
+        double launchererror;
+        double launcherV;
 
         odo.update();
         Pose2D CurrentLocation = odo.getPosition();
@@ -286,11 +358,21 @@ public class Kitchenet {
             headingCurrent = headingCurrent + 360;
         }
 
+//        TargetPath = new Vector2d((xTarget - PrexTarget),(yTarget - PreyTarget));
+//        PastPath = new Vector2d((xCurrent-PrexTarget),(yCurrent-PreyTarget));
+//        TargetPathSqurd = (TargetPath.getX() * TargetPath.getX()) + (TargetPath.getY() * TargetPath.getY());
+//        ScalarProj = PastPath.dot(TargetPath) / TargetPathSqurd;
+//        PointOnPath = (new Vector2d(PrexTarget,PreyTarget)).plus(TargetPath.times(ScalarProj));
+//        ToPath = PointOnPath.minus(new Vector2d(xCurrent,yCurrent));
 
         PureErrorVector = new Vector2d(xTarget-xCurrent,yTarget-yCurrent);
         PureTargetVector = PureErrorVector.rotateBy(-CurrentLocation.getHeading(AngleUnit.DEGREES));
 
+//        TrueError = (ToPath.times(Strict)).plus(PureTargetVector.times(Eager));
 
+
+//        drivepid = DrivePID(pDrive, iDrive, dDrive, TrueError.getX());
+//        strafepid = DrivePID(pStrafe, iStrafe, dStrafe, TrueError.getY());
         drivepid = DrivePID(pDrive, iDrive, dDrive, PureTargetVector.getX());
         strafepid = StrafePID(pStrafe, iStrafe, dStrafe, PureTargetVector.getY());
         headingpid = HeadingPID(pHeading,iHeading,dHeading, headingCurrent, headingTarget);
@@ -298,6 +380,9 @@ public class Kitchenet {
         drivevelocity = drivepid;
         strafevelocity = strafepid;
         headingvelocity = headingpid;
+
+        //hard code bad
+        //speed = 1;
 
         FrontRightTargetVelocity = (drivevelocity + strafevelocity - headingvelocity) * speed;
         FrontLeftTargetVelocity = (drivevelocity - strafevelocity + headingvelocity) * speed;
@@ -308,32 +393,41 @@ public class Kitchenet {
         FrontLeft.setVelocity(FrontLeftTargetVelocity);
         BackRight.setVelocity(BackRightTargetVelocity);
         BackLeft.setVelocity(BackLeftTargetVelocity);
-
     }
 
 
     public void PersonalUpdateAuto() {
-
-
+//        launcherV = (LLAUNCHER.getVelocity());
+//        //tune
+//        //LAUNCHER PIDS
+//        // max velo is 2150
+//
+//        double launchererror = targetlauncher - launcherV;
+//        double derlauncherThing = launchererror - lastlaunchererror;
+//        double theithingthatdosesomething =+ launchererror;
+//        double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherd) + (theithingthatdosesomething * launcheri) + (LLAUNCHER.getVelocity());
+//        lastlaunchererror = launchererror;
+//        LLAUNCHER.setVelocity(launcheroutput);
+//        RLAUNCHER.setVelocity(launcheroutput);
 
     }
 
 
-        DcMotorEx MotorMap(String deviceName, DcMotorEx.Direction direction, DcMotor.RunMode EncoderMode) {
-            DcMotorEx aMotor = myOpMode.hardwareMap.get(DcMotorEx.class, deviceName);
-            aMotor.setDirection(direction);
-            aMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-            aMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-            aMotor.setMode(EncoderMode);
-            return aMotor;
-        }
+    DcMotorEx MotorMap(String deviceName, DcMotorEx.Direction direction, DcMotor.RunMode EncoderMode) {
+        DcMotorEx aMotor = myOpMode.hardwareMap.get(DcMotorEx.class, deviceName);
+        aMotor.setDirection(direction);
+        aMotor.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+        aMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        aMotor.setMode(EncoderMode);
+        return aMotor;
+    }
 
 
-        Servo ServoSetup(String deviceName, Servo.Direction direction) {
-            Servo aServo = myOpMode.hardwareMap.get(Servo.class, deviceName);
-            aServo.setDirection(direction);
-            return aServo;
-        }
+    Servo ServoSetup(String deviceName, Servo.Direction direction) {
+        Servo aServo = myOpMode.hardwareMap.get(Servo.class, deviceName);
+        aServo.setDirection(direction);
+        return aServo;
+    }
 
 
     public double HeadingPID(double p, double i, double d, double current, double target){
@@ -380,12 +474,17 @@ public class Kitchenet {
     public void telemetryupdate(){
 
 
-    //Drive Telem
+        //Drive Telem
         myOpMode.telemetry.addLine("FARTS Data");
 
         myOpMode.telemetry.addData("Xerror ", PureErrorVector.getX());
         myOpMode.telemetry.addData("Yerror ", PureErrorVector.getY());
         myOpMode.telemetry.addData("headingerror ",headingerror);
+        myOpMode.telemetry.addData("XTarget Vec ", PureTargetVector.getX());
+        myOpMode.telemetry.addData("YTarget Vec ", PureTargetVector.getY());
+        myOpMode.telemetry.addData("drive volicirty ", drivevelocity);
+        myOpMode.telemetry.addData("strafte velocity ", strafevelocity);
+
 
 
         myOpMode.telemetry.addData("FrontRight ", FrontRight.getVelocity());
@@ -400,6 +499,7 @@ public class Kitchenet {
 
         myOpMode.telemetry.addData("Target X ",xTarget);
         myOpMode.telemetry.addData("Target Y ",yTarget);
+        myOpMode.telemetry.addData("Target Heading",headingTarget);
 
         myOpMode.telemetry.addData("Current X ",xCurrent);
         myOpMode.telemetry.addData("Current Y ",yCurrent);
@@ -409,6 +509,8 @@ public class Kitchenet {
         myOpMode.telemetry.addData("Battery Voltage", ControlHub_VoltageSensor.getVoltage());
 
         myOpMode.telemetry.addData("yaw scalor", odo.getYawScalar());
+
+        myOpMode.telemetry.addData("i", i);
 
 
         TelemetryPacket packet1 = new TelemetryPacket();
@@ -420,11 +522,8 @@ public class Kitchenet {
                 .strokeCircle(xTarget, yTarget, 4);
 
 
-    //Personal Telem
+        //Personal Telem
 
-        myOpMode.telemetry.addLine();
-        myOpMode.telemetry.addLine("Other Data");
-        myOpMode.telemetry.addData("Target Heading ",headingTarget);
 
 
 
@@ -435,31 +534,37 @@ public class Kitchenet {
 
 
 
-        public void startlocation(double x, double y, double heading){
+    public void startlocation(double x, double y, double heading){
         double rotation;
-            if (heading < 180){
-                rotation = -heading;
-            } else {
-                rotation = -(heading - 360);
-            }
-            startpose = new Pose2D(DistanceUnit.INCH,x,y,AngleUnit.DEGREES, rotation);
-
-            xTarget = startpose.getX(DistanceUnit.INCH);
-            yTarget = startpose.getY(DistanceUnit.INCH);
-            headingTarget = startpose.getHeading(AngleUnit.DEGREES);
-
+        if (heading < 180){
+            rotation = -heading;
+        } else {
+            rotation = -(heading - 360);
         }
+        startpose = new Pose2D(DistanceUnit.INCH,x,y,AngleUnit.DEGREES, rotation);
+
+        xTarget = startpose.getX(DistanceUnit.INCH);
+        yTarget = startpose.getY(DistanceUnit.INCH);
+        PrexTarget = startpose.getX(DistanceUnit.INCH);
+        PreyTarget = startpose.getY(DistanceUnit.INCH);
+        headingTarget = startpose.getHeading(AngleUnit.DEGREES);
+
+    }
 
 
     public void ResetPinpoint (){
         myOpMode.sleep(odoCalabrasionSleep);
-        odo.setYawScalar(odoYawScalor);
+        //odo.setYawScalar(odoYawScalor);
         odo.recalibrateIMU();
         myOpMode.sleep(odoCalabrasionSleep);
 
     }
 
+    public void iaamrunning (){
 
+        myOpMode.telemetry.addData("hellps", i);
+
+    }
 
     public void Counter(double Time){
         if (Timer.seconds() > Time) {
@@ -470,30 +575,52 @@ public class Kitchenet {
 
 
 
-        public void driveTo(double x, double y) {
+    public void driveTo(double x, double y) {
 
-            xTarget = x;
-            yTarget = y;
-            speed = DefaultSpeed;
+//            if (x!=xTarget || y!=yTarget){
+//                PrexTarget=xTarget;
+//                PreyTarget=yTarget;
+//            }
 
-        }
+        xTarget = x;
+        yTarget = y;
+        speed = DefaultSpeed;
 
-        public void driveTo(double x, double y, double heading) {
+    }
 
-            xTarget = x;
-            yTarget = y;
-            headingTarget = heading;
-            speed = DefaultSpeed;
+    public void driveTo(double x, double y, double heading) {
 
-        }
+//            if (x!=xTarget || y!=yTarget){
+//                PrexTarget=xTarget;
+//                PreyTarget=yTarget;
+//            }
 
-        public void driveTo(double x, double y, double heading, double Speed) {
+        xTarget = x;
+        yTarget = y;
+        headingTarget = heading;
+        speed = DefaultSpeed;
 
-            xTarget = x;
-            yTarget = y;
-            headingTarget = heading;
-            speed = Speed;
-        }
+    }
+    //how to add actions for auto
+    // public void action.name(doublevalue){
+    // action; }
+    public void intakereset(double pp){
+        intake.setPower(pp);
+    }
+
+
+    public void driveTo(double x, double y, double heading, double Speed) {
+
+//            if (x!=xTarget || y!=yTarget){
+//                PrexTarget=xTarget;
+//                PreyTarget=yTarget;
+//            }
+
+        xTarget = x;
+        yTarget = y;
+        headingTarget = heading;
+        speed = Speed;
+    }
 
 
 }
