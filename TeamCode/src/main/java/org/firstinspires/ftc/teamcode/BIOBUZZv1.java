@@ -430,14 +430,16 @@ public class BIOBUZZv1 extends LinearOpMode {
                 sx = !sx;
                 txx = false;
             }
-            if (!gamepad1.dpad_down) {
+            if (!gamepad1.x) {
                 txx = true;
             }
             if (sx) {
-
+                //open
+                stopper.setPosition(.8);
             }
             if (!sx) {
-                //second action
+                //close
+
             }
 //button a
             if (gamepad1.a && ta) {

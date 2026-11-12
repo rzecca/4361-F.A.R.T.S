@@ -133,6 +133,16 @@ public class Kitchenet {
 
     public DcMotorEx intake;
     public DcMotorEx launcher;
+    public Servo stopper;
+    public Servo ramp;
+
+    private double targetlauncher = 0;
+    double launcherV;
+    double lastlaunchererror;
+
+    public void setLauncherSpeed(double ticksPerSecond) {
+        targetlauncher = ticksPerSecond;
+    }
 
 
 
@@ -215,14 +225,12 @@ public class Kitchenet {
         //Personal Init
 
         intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
-
-
+        launcher = MotorMap( "launcher", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        stopper = ServoSetup("stopper", Servo.Direction.FORWARD);
+        ramp = ServoSetup("ramp", Servo.Direction.FORWARD);
 
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-
     }
 
 
@@ -275,8 +283,9 @@ public class Kitchenet {
         //Personal Init
 
         intake = MotorMap( "intake", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-        launcher = MotorMap( "launcher", DcMotorEx.Direction.FORWARD , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-
+        launcher = MotorMap( "launcher", DcMotorEx.Direction.REVERSE , DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        stopper = ServoSetup("stopper", Servo.Direction.FORWARD);
+        ramp = ServoSetup("ramp", Servo.Direction.FORWARD);
 
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
@@ -394,8 +403,37 @@ public class Kitchenet {
 //        LLAUNCHER.setVelocity(launcheroutput);
 //        RLAUNCHER.setVelocity(launcheroutput);
 
-    }
+        //tune
+        //LAUNCHER PIDS
+        double launcherP = .3;
+        double launcherD = .002;
 
+//        double launchererror = targetlauncher - launcherV;
+//        double derlauncherThing = launchererror - lastlaunchererror;
+//        double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherD);
+//        lastlaunchererror = launchererror;
+//        launcher.setVelocity(launcheroutput);
+
+
+            launcherV = launcher.getVelocity();
+
+            if (targetlauncher == 0) {
+                launcher.setPower(0);
+                lastlaunchererror = 0;
+                return;
+            }
+
+
+            double launchererror = targetlauncher - launcherV;
+            double derlauncherThing = launchererror - lastlaunchererror;
+            double launcheroutput =
+                    launchererror * launcherP
+                            + derlauncherThing * launcherD;
+
+            lastlaunchererror = launchererror;
+            launcher.setVelocity(launcheroutput);
+
+    }
 
     DcMotorEx MotorMap(String deviceName, DcMotorEx.Direction direction, DcMotor.RunMode EncoderMode) {
         DcMotorEx aMotor = myOpMode.hardwareMap.get(DcMotorEx.class, deviceName);
