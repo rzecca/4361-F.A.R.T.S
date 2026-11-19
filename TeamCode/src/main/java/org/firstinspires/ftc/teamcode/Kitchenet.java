@@ -175,8 +175,8 @@ public class Kitchenet {
         dHeading = 1;
 
         odoYawScalor = 1;
-        odoXoffSet = -6.5;
-        odoYoffSet = 3;
+        odoXoffSet = -5.2924574803;
+        odoYoffSet = -3.0442826772;
         odoCalabrasionSleep = 500;
 
         Eager = 1;
@@ -239,6 +239,7 @@ public class Kitchenet {
 
         //Drive Start Up
         Timer.reset();
+        i = 1;
 
         //Personal Start Up
 
@@ -423,7 +424,6 @@ public class Kitchenet {
                 return;
             }
 
-
             double launchererror = targetlauncher - launcherV;
             double derlauncherThing = launchererror - lastlaunchererror;
             double launcheroutput =
@@ -536,6 +536,7 @@ public class Kitchenet {
         myOpMode.telemetry.addData("yaw scalor", odo.getYawScalar());
 
         myOpMode.telemetry.addData("i", i);
+        myOpMode.telemetry.addData("time",Timer.seconds());
 
 
         TelemetryPacket packet1 = new TelemetryPacket();
@@ -596,6 +597,11 @@ public class Kitchenet {
             i += 1;
             Timer.reset();
         }
+    }
+
+    public int ithing(){
+
+       return i;
     }
 
 

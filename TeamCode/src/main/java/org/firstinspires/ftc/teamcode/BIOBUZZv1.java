@@ -1,6 +1,7 @@
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.dashboard.FtcDashboard;
+import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.dfrobot.HuskyLens;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
@@ -22,8 +23,8 @@ import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
 //import org.firstinspires.ftc.teamcode.RunningOpModes.OLDCODE.FINAL_BLUE_TELEOP;
 
-
-@TeleOp(name = "Teleop", group = "Sensor")
+@Config
+@TeleOp(name = "RED TELOPNESS", group = "Sensor")
 public class BIOBUZZv1 extends LinearOpMode {
 
     ElapsedTime actionTimer = new ElapsedTime();
@@ -125,8 +126,12 @@ public class BIOBUZZv1 extends LinearOpMode {
     BIOBUZZv1.ActionState actionState = BIOBUZZv1.ActionState.IDLE;
     //TURRET CODE
     // Target coordinates in inches, using the same map as Pinpoint.
-    double TARGET_X = 48;
-    double TARGET_Y = -83;
+    public static double TARGET_X = 57;
+    public static double TARGET_Y = -50;
+    public static double launcherP = .5;
+
+
+    public static double setlaunchervelo;
 
     // 435 RPM goBILDA Yellow Jacket.
     double MOTOR_TICKS_PER_REV = 384.5;
@@ -142,113 +147,114 @@ public class BIOBUZZv1 extends LinearOpMode {
 
     // Replace these example limits with your turret's actual travel.
 // Zero degrees means pointing straight forward.
-    double TURRET_MIN_DEG = -180;
-    double TURRET_MAX_DEG = 190;
+    double TURRET_MIN_DEG = -200;
+    double TURRET_MAX_DEG = 200;
 
     // Starting values — tune on your robot.
     double TURRET_P = .03;
     double TURRET_D = 0.0002;
     double TURRET_MAX_POWER = .3;
     double TURRET_TOLERANCE_DEG = .05;
-    private void aimTurret(DcMotorEx turret) {
-
-        // Your existing loop must call pinpoint.update() first.
-        if (pinpoint.getDeviceStatus()
-                != GoBildaPinpointDriver.DeviceStatus.READY) {
-            turret.setPower(0);
-            return;
-        }
-
-        double ticksPerTurretRev = MOTOR_TICKS_PER_REV * TURRET_GEAR_RATIO;
-
-        if (!Double.isFinite(ticksPerTurretRev) || ticksPerTurretRev <= 0
-                || Math.abs(TURRET_SIGN) != 1
-                || !Double.isFinite(TURRET_MIN_DEG)
-                || !Double.isFinite(TURRET_MAX_DEG)
-                || TURRET_MIN_DEG >= TURRET_MAX_DEG
-                || !Double.isFinite(TURRET_P) || TURRET_P < 0
-                || !Double.isFinite(TURRET_D) || TURRET_D < 0
-                || !Double.isFinite(TURRET_MAX_POWER) || TURRET_MAX_POWER <= 0
-                || !Double.isFinite(TURRET_TOLERANCE_DEG)
-                || TURRET_TOLERANCE_DEG < 0) {
-            turret.setPower(0);
-            return;
-        }
-        Pose2D pose = pinpoint.getPosition();
-
-        double robotX = pose.getX(DistanceUnit.INCH);
-        double robotY = pose.getY(DistanceUnit.INCH);
-
-        // Native Pinpoint heading: counterclockwise positive.
-        // Do not use your negated driving heading here.
-        double robotHeading = pose.getHeading(AngleUnit.DEGREES);
-
-        // Assumes turret pivot is at Pinpoint's robot tracking point.
-        double dx = TARGET_X - robotX;
-        double dy = TARGET_Y - robotY;
-
-        if (!Double.isFinite(dx) || !Double.isFinite(dy)
-                || !Double.isFinite(robotHeading)
-                || Math.hypot(dx, dy) < 0.01) {
-            turret.setPower(0);
-            return;
-        }
-
-        double fieldBearing = Math.toDegrees(Math.atan2(dy, dx));
-
-        double relativeBearing =
-                ((fieldBearing - robotHeading + 180) % 360 + 360) % 360 - 180;
-
-        double currentAngle = TURRET_SIGN
-                * turret.getCurrentPosition()
-                * 360.0 / ticksPerTurretRev;
-
-        // Choose an equivalent target inside the turret's travel limits.
-        double firstTurn = Math.ceil(
-                (TURRET_MIN_DEG - relativeBearing) / 360.0);
-        double lastTurn = Math.floor(
-                (TURRET_MAX_DEG - relativeBearing) / 360.0);
-
-        if (firstTurn > lastTurn) {
-            turret.setPower(0);
-            telemetry.addData("Turret", "Target outside travel limits");
-            return;
-        }
-
-        double nearestTurn = Math.max(firstTurn, Math.min(lastTurn,
-                Math.rint((currentAngle - relativeBearing) / 360.0)));
-
-        double targetAngle = relativeBearing + 360.0 * nearestTurn;
-
-        // Do not wrap this error; that could command travel through a stop.
-        double error = targetAngle - currentAngle;
-
-        double velocityDegSec = TURRET_SIGN
-                * turret.getVelocity()
-                * 360.0 / ticksPerTurretRev;
-
-        double power = TURRET_P * error - TURRET_D * velocityDegSec;
-
-        if (!Double.isFinite(power)) {
-            turret.setPower(0);
-            return;
-        }
-
-        double maxPower = Math.min(1, TURRET_MAX_POWER);
-        power = Math.max(-maxPower, Math.min(maxPower, power));
-
-        if (Math.abs(error) <= TURRET_TOLERANCE_DEG
-                || (currentAngle <= TURRET_MIN_DEG && power < 0)
-                || (currentAngle >= TURRET_MAX_DEG && power > 0)) {
-            power = 0;
-        }
-
-        turret.setPower(TURRET_SIGN * power);
-
-        telemetry.addData("Turret actual angle", currentAngle);
-        telemetry.addData("Turret target angle", targetAngle);
-        telemetry.addData("Turret error", error);
-    }
+//    private void aimTurret(DcMotorEx turret) {
+//
+//        // Your existing loop must call pinpoint.update() first.
+//        if (pinpoint.getDeviceStatus()
+//                != GoBildaPinpointDriver.DeviceStatus.READY) {
+//            turret.setPower(0);
+//            return;
+//        }
+//
+//        double ticksPerTurretRev = MOTOR_TICKS_PER_REV * TURRET_GEAR_RATIO;
+//
+//        if (!Double.isFinite(ticksPerTurretRev) || ticksPerTurretRev <= 0
+//                || Math.abs(TURRET_SIGN) != 1
+//                || !Double.isFinite(TURRET_MIN_DEG)
+//                || !Double.isFinite(TURRET_MAX_DEG)
+//                || TURRET_MIN_DEG >= TURRET_MAX_DEG
+//                || !Double.isFinite(TURRET_P) || TURRET_P < 0
+//                || !Double.isFinite(TURRET_D) || TURRET_D < 0
+//                || !Double.isFinite(TURRET_MAX_POWER) || TURRET_MAX_POWER <= 0
+//                || !Double.isFinite(TURRET_TOLERANCE_DEG)
+//                || TURRET_TOLERANCE_DEG < 0) {
+//            turret.setPower(0);
+//            return;
+//        }
+//        Pose2D pose = pinpoint.getPosition();
+//
+//        double robotX = pose.getX(DistanceUnit.INCH);
+//        double robotY = pose.getY(DistanceUnit.INCH);
+//
+//        // Native Pinpoint heading: counterclockwise positive.
+//        // Do not use your negated driving heading here.
+//        double robotHeading = pose.getHeading(AngleUnit.DEGREES);
+//
+//        // Assumes turret pivot is at Pinpoint's robot tracking point.
+//        double dx = TARGET_X - robotX;
+//        double dy = TARGET_Y - robotY;
+//
+//        if (!Double.isFinite(dx) || !Double.isFinite(dy)
+//                || !Double.isFinite(robotHeading)
+//                || Math.hypot(dx, dy) < 0.01) {
+//            turret.setPower(0);
+//            return;
+//        }
+//
+//        double fieldBearing = Math.toDegrees(Math.atan2(dy, dx));
+//
+//        double relativeBearing =
+//                ((fieldBearing - robotHeading + 180) % 360 + 360) % 360 - 180;
+//
+//        double currentAngle = TURRET_SIGN
+//                * turret.getCurrentPosition()
+//                * 360.0 / ticksPerTurretRev;
+//
+//        // Choose an equivalent target inside the turret's travel limits.
+//        double firstTurn = Math.ceil(
+//                (TURRET_MIN_DEG - relativeBearing) / 360.0);
+//        double lastTurn = Math.floor(
+//                (TURRET_MAX_DEG - relativeBearing) / 360.0);
+//
+//        if (firstTurn > lastTurn) {
+//            turret.setPower(0);
+//            telemetry.addData("Turret", "Target outside travel limits");
+//            return;
+//        }
+//
+//        double nearestTurn = Math.max(firstTurn, Math.min(lastTurn,
+//                Math.rint((currentAngle - relativeBearing) / 360.0)));
+//
+//        double targetAngle = relativeBearing + 360.0 * nearestTurn;
+//
+//        // Do not wrap this error; that could command travel through a stop.
+//        double error = targetAngle - currentAngle;
+//
+//        double velocityDegSec = TURRET_SIGN
+//                * turret.getVelocity()
+//                * 360.0 / ticksPerTurretRev;
+//
+//        double power = TURRET_P * error - TURRET_D * velocityDegSec;
+//
+//        if (!Double.isFinite(power)) {
+//            turret.setPower(0);
+//            return;
+//        }
+//
+//        double maxPower = Math.min(1, TURRET_MAX_POWER);
+//        power = Math.max(-maxPower, Math.min(maxPower, power));
+//
+//        if (Math.abs(error) <= TURRET_TOLERANCE_DEG
+//                || (currentAngle <= TURRET_MIN_DEG && power < 0)
+//                || (currentAngle >= TURRET_MAX_DEG && power > 0)) {
+//            power = 0;
+//        }
+//
+//        turret.setPower(TURRET_SIGN * power);
+//
+//        telemetry.addData("Turret actual angle", currentAngle);
+//        telemetry.addData("Turret target angle", targetAngle);
+//        telemetry.addData("Turret error", error);
+//        telemetry.addData("turret amps", turret.getCurrent(CurrentUnit.AMPS));
+//    }
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -314,7 +320,7 @@ public class BIOBUZZv1 extends LinearOpMode {
         BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         intake.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
-        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        turret.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         launcher.setDirection(DcMotorSimple.Direction.REVERSE);
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -371,9 +377,8 @@ public class BIOBUZZv1 extends LinearOpMode {
             }
             pinpoint.update();
             if (gamepad1.a && gamepad1.y) {
-                turret.setPower(0);
-            } else {
-                aimTurret(turret);
+                pinpoint.resetPosAndIMU();
+                sleep(250);
             }
 
             headingCurrent = -Math.toDegrees(pinpoint.getHeading(AngleUnit.RADIANS));
@@ -396,12 +401,6 @@ public class BIOBUZZv1 extends LinearOpMode {
             BR.setPower(BRTargetPower);
             BL.setPower(BLTargetPower);
 
-            //reset IMU
-            if (gamepad1.a && gamepad1.y) {
-                sleep(500);
-                pinpoint.resetPosAndIMU();
-                sleep(500);
-            }
 //            //LIMELIGHT MATH
 //            LLResult result = LL.getLatestResult();
 //            if (result != null) {
@@ -414,7 +413,7 @@ public class BIOBUZZv1 extends LinearOpMode {
 
             //tune
             //LAUNCHER PIDS
-            double launcherP = .3;
+            //double launcherP = .5;
             double launcherD = .002;
             double launchererror = targetlauncher - launcherV;
             double derlauncherThing = launchererror - lastlaunchererror;
@@ -422,9 +421,7 @@ public class BIOBUZZv1 extends LinearOpMode {
             lastlaunchererror = launchererror;
             launcher.setVelocity(launcheroutput);
             telemetry.addData("Launcher Velo", launcher.getVelocity());
-
-            targetlauncher = 1200 * 3.5;
-
+            targetlauncher = 3100;
 //button x
             if (gamepad1.x && txx) {
                 sx = !sx;
@@ -435,95 +432,90 @@ public class BIOBUZZv1 extends LinearOpMode {
             }
             if (sx) {
                 //open
-                stopper.setPosition(.8);
+
             }
             if (!sx) {
                 //close
-
             }
+
 //button a
-            if (gamepad1.a && ta) {
+            if (gamepad1.dpad_down && ta) {
                 sa = !sa;
                 ta = false;
             }
-            if (!gamepad1.a) {
+            if (!gamepad1.dpad_down) {
                 ta = true;
             }
             if (sa) {
                 //one action
+                //down
+                ramp.setPosition(.5);
+
             }
             if (!sa) {
                 //second action
+                //up
+                ramp.setPosition(.84);
+
             }
-// Detect one press, rather than repeatedly toggling while held.
-            boolean aPressed = gamepad1.a && !lastIntakeA;
-            boolean resetPressed = gamepad1.b && !lastIntakeReset;
+//// Detect one press, rather than repeatedly toggling while held.
+//            boolean aPressed = gamepad1.a && !lastIntakeA;
+//            boolean resetPressed = gamepad1.b && !lastIntakeReset;
+//
+//            lastIntakeA = gamepad1.a;
+//            lastIntakeReset = gamepad1.b;
+//
+//// B resets the overload and leaves the intake OFF.
+//            if (resetPressed) {
+//                intakeTripped = false;
+//                intakeOn = false;
+//                intakeOverCurrent = false;
+//                intakeOverloadTimer.reset();
+//            } else if (aPressed && !intakeTripped) {
+//                intakeOn = !intakeOn;
+//            }
+//
+//            double intakeAmps = intake.getCurrent(CurrentUnit.AMPS);
+//
+//// Trip only when current stays above the limit for the delay.
+//            if (intakeOn && !intakeTripped
+//                    && intakeAmps > INTAKE_CURRENT_LIMIT_AMPS) {
+//
+//                if (!intakeOverCurrent) {
+//                    intakeOverCurrent = true;
+//                    intakeOverloadTimer.reset();
+//                }
+//
+//                if (intakeOverloadTimer.seconds() >= INTAKE_OVERLOAD_DELAY_SEC) {
+//                    intakeTripped = true;
+//                    intakeOn = false;
+//                }
+//            } else {
+//                intakeOverCurrent = false;
+//                intakeOverloadTimer.reset();
+//            }
+//
+//            intake.setPower(intakeOn && !intakeTripped ? 0.75 : 0.0);
+//
+//            telemetry.addData("Intake current (A)", intakeAmps);
+//            telemetry.addData("Intake",
+//                    intakeTripped ? "TRIPPED — press B"
+//                            : intakeOn ? "ON" : "OFF");// button b
+//
 
-            lastIntakeA = gamepad1.a;
-            lastIntakeReset = gamepad1.b;
-
-// B resets the overload and leaves the intake OFF.
-            if (resetPressed) {
-                intakeTripped = false;
-                intakeOn = false;
-                intakeOverCurrent = false;
-                intakeOverloadTimer.reset();
-            } else if (aPressed && !intakeTripped) {
-                intakeOn = !intakeOn;
-            }
-
-            double intakeAmps = intake.getCurrent(CurrentUnit.AMPS);
-
-// Trip only when current stays above the limit for the delay.
-            if (intakeOn && !intakeTripped
-                    && intakeAmps > INTAKE_CURRENT_LIMIT_AMPS) {
-
-                if (!intakeOverCurrent) {
-                    intakeOverCurrent = true;
-                    intakeOverloadTimer.reset();
-                }
-
-                if (intakeOverloadTimer.seconds() >= INTAKE_OVERLOAD_DELAY_SEC) {
-                    intakeTripped = true;
-                    intakeOn = false;
-                }
-            } else {
-                intakeOverCurrent = false;
-                intakeOverloadTimer.reset();
-            }
-
-            intake.setPower(intakeOn && !intakeTripped ? 1.0 : 0.0);
-
-            telemetry.addData("Intake current (A)", intakeAmps);
-            telemetry.addData("Intake",
-                    intakeTripped ? "TRIPPED — press B"
-                            : intakeOn ? "ON" : "OFF");// button b
-            if (gamepad1.b && tb) {
-                sb = !sb;
-                tb = false;
-            }
-            if (!gamepad1.b) {
-                tb = true;
-            }
-            if (sb) {
-                //one action
-            }
-            if (!sb) {
-                //second action
-            }
 //button y
-            if (gamepad1.y && tyy) {
-                syy = !syy;
-                tyy = false;
+            if (gamepad1.a){
+                stopper.setPosition(.95);
+                intake.setPower(.5);
             }
-            if (!gamepad1.y) {
-                tyy = true;
+            if (gamepad1.back) {
+                intake.setPower(0);
             }
-            if (syy) {
-                //one action
-            }
-            if (!syy) {
-                //second action
+//x launches
+            if (gamepad1.x){
+                stopper.setPosition(.85);
+                intake.setPower(1);
+                targetlauncher = 1000000000;
             }
 //button dpad down
             if (gamepad1.dpad_right && tdr) {
@@ -584,4 +576,6 @@ public class BIOBUZZv1 extends LinearOpMode {
 
             //possible turret code
             telemetry.update();
+            telemetry.addData("posx", pinpoint.getPosX(DistanceUnit.INCH));
+            telemetry.addData("posy", pinpoint.getPosY(DistanceUnit.INCH));
 }}}

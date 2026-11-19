@@ -47,17 +47,15 @@ public class Tuning extends LinearOpMode {
             stuff.telemetryupdate();
 
 
+            stuff.ramp.setPosition(.84);
 
                 if (Timer.seconds() < 5) {
-
                     stuff.driveTo(0, 0,0);
 
-                } else if (Timer.seconds() < 10) {
+                } else if (Timer.seconds() < 1000000000) {
 
                     stuff.driveTo(tunex, tuney, tuneheading);
 
-                } else {
-                    Timer.reset();
                 }
 
 

@@ -26,7 +26,6 @@ public class testauto extends LinearOpMode {
         stuff.StartUpAuto();
         stuff.telemetryupdate();
 
-
         while (opModeIsActive()) {
 
             stuff.DriveUpdateAuto();
