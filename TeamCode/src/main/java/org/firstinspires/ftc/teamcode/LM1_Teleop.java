@@ -19,7 +19,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 @Config
 @TeleOp(name = "LM1 Tele-op", group = "Sensor")
-public class JoeBiobuzzwithTurret extends LinearOpMode {
+public class LM1_Teleop extends LinearOpMode {
 
     ElapsedTime actionTimer = new ElapsedTime();
 
@@ -117,7 +117,7 @@ public class JoeBiobuzzwithTurret extends LinearOpMode {
         WAITING,
         ACTION2
     }
-    JoeBiobuzzwithTurret.ActionState actionState = JoeBiobuzzwithTurret.ActionState.IDLE;
+    LM1_Teleop.ActionState actionState = LM1_Teleop.ActionState.IDLE;
     //TURRET CODE
     // Target coordinates in inches, using the same map as Pinpoint.
     public static double TARGET_X = 57.5;

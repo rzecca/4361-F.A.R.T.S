@@ -4,6 +4,7 @@ import com.acmerobotics.dashboard.FtcDashboard;
 import com.acmerobotics.dashboard.config.Config;
 import com.acmerobotics.dashboard.telemetry.MultipleTelemetry;
 import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -20,17 +21,12 @@ import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 
 @Config
 @TeleOp(name = "LM2 Tele-op", group = "Sensor")
-public class LM2tele extends LinearOpMode {
+public class LM2_Teleop extends LinearOpMode {
 
     ElapsedTime actionTimer = new ElapsedTime();
 
     //Driving
-    public double FLTargetPower;
-    public double FRTargetPower;
-    public double BLTargetPower;
-    public double BRTargetPower;
-    public double Z_Weight_Current;
-    public double headingCurrent;
+    public double FLTargetPower;public double FRTargetPower;public double BLTargetPower;public double BRTargetPower;public double Z_Weight_Current;public double headingCurrent;
 
     private VoltageSensor ControlHub_VoltageSensor;
     private VoltageSensor ExpansionHub2_VoltageSensor;
@@ -52,108 +48,25 @@ public class LM2tele extends LinearOpMode {
     double headingstick;
 
     //on off buttons
-    boolean ta;
-    boolean sa;
-    boolean tb;
-    boolean sb;
-    boolean txx;
-    boolean sx;
-    boolean tyy;
-    boolean syy;
-    boolean sdd;
-    boolean tdd;
-    boolean sdl;
-    boolean tdl;
-    boolean sdu;
-    boolean tdu;
-    boolean sdr;
-    boolean tdr;
-
-    boolean stateyy;
-    boolean thingyyy;
-
-    //ALL LIMELIGHT PIDS
-//    private Limelight3A LL;
-    private double disance;
-    double tx;
-    double ty;
-    public static double kP = .05;
-    public static double maxPower = 1;
-    double theLnumber;
-
+    boolean ta;boolean sa;boolean tb;boolean sb;boolean txx;boolean sx;boolean tyy;boolean syy;boolean sdd;boolean tdd;boolean sdl;boolean tdl;boolean sdu;boolean tdu;boolean sdr;boolean tdr;
 
     //launcher PID
     double lastlaunchererror;
     double targetlauncher;
-    double LAUNCHERVELO;
-    double launchererror;
-    double launcherV;
 
-    //    double launchers = Arrays.asList(LLAUNCHER, RLAUNCHER);
-    //Turret PID's
-    //tune
-    public double launcherturretonbearingPconstantvaluethingy = .031;
-    public double launcherturretonbearingIconstantvaluethingier = 0;
-    public double launcherturrtonbearingDconstantvaluethingiest = 0.0047;
-    double intergalSum = 0;
-    double stricktness;
-    double launcherturretonbearingerror;
-    ElapsedTime timer = new ElapsedTime();
-    private double lastLauncherturretonbearingerror;
+    double launcherV;
 
     //rpms
     double ticksPerRev = 28;
     double rpm = 100;
     double ticksPerSec = (rpm * ticksPerRev) / 60.0;
 
-
     public void setPinpoint(GoBildaPinpointDriver pinpoint) {
         this.pinpoint = pinpoint;
     }
 
-    //sequence timer stuff
-    enum ActionState {
-        IDLE,
-        ACTION1,
-        WAITING,
-        ACTION2
-    }
-    LM2tele.ActionState actionState = LM2tele.ActionState.IDLE;
-    //TURRET CODE
-    // Target coordinates in inches, using the same map as Pinpoint.
-    public static double TARGET_X = 57.5;
-    public static double TARGET_Y = -52.5;
     public static double launcherP = .65;
-    public static double launcherD = .002;
-
-
-
-
     public static double setlaunchervelo;
-
-    // 435 RPM goBILDA Yellow Jacket.
-    double MOTOR_TICKS_PER_REV = 384.5;
-
-    // Motor output-shaft turns per full turret revolution.
-// Direct drive = 1.0.
-// Example: 20-tooth motor gear driving 100-tooth turret gear = 5.0.
-    double TURRET_GEAR_RATIO = 1.5;
-
-    // +1 if positive motor power and increasing encoder counts turn
-// the turret counterclockwise. Otherwise use -1.
-    double TURRET_SIGN = 1;
-
-    // Replace these example limits with your turret's actual travel.
-// Zero degrees means pointing straight forward.
-    double TURRET_MIN_DEG = -200;
-    double TURRET_MAX_DEG = 200;
-
-    // Starting values — tune on your robot.
-    double TURRET_P = .03;
-    double TURRET_D = 0.0002;
-    double TURRET_MAX_POWER = .3;
-    double TURRET_TOLERANCE_DEG = .05;
-
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -166,6 +79,9 @@ public class LM2tele extends LinearOpMode {
         DcMotorEx BR;
         BR = hardwareMap.get(DcMotorEx.class, "BR");
 
+        Limelight3A LL;
+        LL = hardwareMap.get(Limelight3A.class, "LL");
+
         DcMotorEx intake;
         intake = hardwareMap.get(DcMotorEx.class, "intake");
         DcMotorEx launcher;
@@ -177,24 +93,6 @@ public class LM2tele extends LinearOpMode {
         ramp = hardwareMap.get(Servo.class, "ramp");
         Servo stopper;
         stopper = hardwareMap.get(Servo.class, "stopper");
-
-
-//        Limelight3A LL;
-//        LL = hardwareMap.get(Limelight3A.class, "LL");
-//        Servo light;
-//        light = hardwareMap.get(Servo.class, "light");
-        //intake current switch
-        double INTAKE_CURRENT_LIMIT_AMPS = 9.5; // Tune for your intake.
-        double INTAKE_OVERLOAD_DELAY_SEC = 0.2;
-
-        boolean intakeOn = false;
-        boolean intakeTripped = false;
-        boolean intakeOverCurrent = false;
-        boolean lastIntakeA = false;
-        boolean lastIntakeReset = false;
-
-        ElapsedTime intakeOverloadTimer = new ElapsedTime();
-
 
         ControlHub_VoltageSensor = hardwareMap.get(VoltageSensor.class, "Control Hub");
         ExpansionHub2_VoltageSensor = hardwareMap.get(VoltageSensor.class, "Expansion Hub 2");
@@ -241,6 +139,8 @@ public class LM2tele extends LinearOpMode {
 
         waitForStart();
 
+        LL.start();
+        LL.pipelineSwitch(1);
 
         while (opModeIsActive()) {
             pinpoint.update();
@@ -275,14 +175,12 @@ public class LM2tele extends LinearOpMode {
                 double robotHeading = pinpoint.getHeading(AngleUnit.DEGREES);
 
                 // Switch goals after crossing midfield.
-// The buffer prevents repeated switching near the line.
                 if (robotY < -72.7) {
                     aimAtRightGoal = true;
                 } else if (robotY > -66.7) {
                     aimAtRightGoal = false;
                 }
 
-// Both goals use the same coordinates as the corner reset.
                 double targetX = 50;
                 double targetY = aimAtRightGoal ? -90.0 : -52.5;
 
@@ -294,16 +192,12 @@ public class LM2tele extends LinearOpMode {
 
                 double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));
 
-                // Convert field direction into an angle relative to the robot.
                 double relativeAngle = fieldAngle - robotHeading;
 
-                // Put that direction between -180 and +180 degrees.
                 relativeAngle = Math.toDegrees(Math.atan2(
                         Math.sin(Math.toRadians(relativeAngle)),
                         Math.cos(Math.toRadians(relativeAngle))));
 
-                // Find an equivalent angle inside the cable limits.
-                // Leave 10 degrees of extra room at either end.
                 double targetAngle = Double.NaN;
                 double shortestMove = Double.POSITIVE_INFINITY;
 
@@ -339,6 +233,9 @@ public class LM2tele extends LinearOpMode {
             } else {
                 power = stick * 0.15;
             }
+
+            //Limelight
+
 
 // Slow outward movement near the cable limits.
             if (power > 0) {
@@ -393,19 +290,8 @@ public class LM2tele extends LinearOpMode {
             BR.setPower(BRTargetPower);
             BL.setPower(BLTargetPower);
 
-//            //LIMELIGHT MATH
-//            LLResult result = LL.getLatestResult();
-//            if (result != null) {
-//                if (result.isValid()) {
-//                    Pose3D botpose = result.getBotpose();
-//                    double x = botpose.getPosition().x;
-//                    double y = botpose.getPosition().y;
-//                }
-//            }
-
-            //tune
             //LAUNCHER PIDS
-            //double  = .5;
+            double launcherD = .002;
             double launchererror = targetlauncher - launcherV;
             double derlauncherThing = launchererror - lastlaunchererror;
             double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherD);
@@ -414,7 +300,6 @@ public class LM2tele extends LinearOpMode {
             telemetry.addData("Launcher Velo", launcher.getVelocity());
             targetlauncher = setlaunchervelo;
 //            setlaunchervelo = 1600;
-
 
 
 
@@ -458,14 +343,14 @@ public class LM2tele extends LinearOpMode {
 //button y
             if (gamepad1.a){
                 stopper.setPosition(.97);
-                intake.setPower(1);
+                intake.setPower(.5);
             }
             if (gamepad1.dpad_up) {
                 intake.setPower(0);
             }
 //x launches
             if (gamepad1.x){
-                stopper.setPosition(.81);
+                stopper.setPosition(.85);
                 intake.setPower(1);
                 //targetlauncher = 1000000000;
             }
