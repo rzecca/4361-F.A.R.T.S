@@ -66,6 +66,8 @@ public class LM2_Teleop extends LinearOpMode {
     }
 
     public static double launcherP = .65;
+    public static double launcherD = .002;
+
     public static double setlaunchervelo;
 
     @Override
@@ -234,9 +236,6 @@ public class LM2_Teleop extends LinearOpMode {
                 power = stick * 0.15;
             }
 
-            //Limelight
-
-
 // Slow outward movement near the cable limits.
             if (power > 0) {
                 double scale = Math.max(0, Math.min(1,
@@ -254,9 +253,6 @@ public class LM2_Teleop extends LinearOpMode {
             telemetry.addData("Turret power", turret.getPower());
             telemetry.addData("Turret angle", "%.1f degrees", turretDegrees);
 
-
-
-
             if (0.1 <= gamepad1.left_trigger) {
                 Z_Weight = 0.5;
                 Speed = 0.25;
@@ -267,8 +263,6 @@ public class LM2_Teleop extends LinearOpMode {
                 Speed = 1;
                 Z_Weight = .75;
             }
-
-
 
             headingCurrent = -Math.toDegrees(pinpoint.getHeading(AngleUnit.RADIANS));
             if (headingCurrent < 0) {
@@ -291,7 +285,6 @@ public class LM2_Teleop extends LinearOpMode {
             BL.setPower(BLTargetPower);
 
             //LAUNCHER PIDS
-            double launcherD = .002;
             double launchererror = targetlauncher - launcherV;
             double derlauncherThing = launchererror - lastlaunchererror;
             double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherD);
@@ -299,7 +292,6 @@ public class LM2_Teleop extends LinearOpMode {
             launcher.setVelocity(launcheroutput);
             telemetry.addData("Launcher Velo", launcher.getVelocity());
             targetlauncher = setlaunchervelo;
-//            setlaunchervelo = 1600;
 
 
 
@@ -313,7 +305,6 @@ public class LM2_Teleop extends LinearOpMode {
             }
             if (sx) {
                 //open
-
             }
             if (!sx) {
                 //close
@@ -414,14 +405,8 @@ public class LM2_Teleop extends LinearOpMode {
 
 
             //possible turret code
-            telemetry.addData("Robot X inches",
-                    pinpoint.getPosX(DistanceUnit.INCH));
-
-            telemetry.addData("Robot Y inches",
-                    pinpoint.getPosY(DistanceUnit.INCH));
-
-            telemetry.addData("Robot heading degrees",
-                    pinpoint.getHeading(AngleUnit.DEGREES));
-
+            telemetry.addData("Robot X", pinpoint.getPosX(DistanceUnit.INCH));
+            telemetry.addData("Robot Y", pinpoint.getPosY(DistanceUnit.INCH));
+            telemetry.addData("Robot heading", pinpoint.getHeading(AngleUnit.DEGREES));
             telemetry.update();
 }}}
