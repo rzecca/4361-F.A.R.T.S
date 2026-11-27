@@ -50,25 +50,24 @@ public class LM2_Teleop extends LinearOpMode {
     //on off buttons
     boolean ta;boolean sa;boolean tb;boolean sb;boolean txx;boolean sx;boolean tyy;boolean syy;boolean sdd;boolean tdd;boolean sdl;boolean tdl;boolean sdu;boolean tdu;boolean sdr;boolean tdr;
 
-    //launcher PID
-    double lastlaunchererror;
-    double targetlauncher;
 
-    double launcherV;
 
-    //rpms
-    double ticksPerRev = 28;
-    double rpm = 100;
-    double ticksPerSec = (rpm * ticksPerRev) / 60.0;
+    // Tune these in FTC Dashboard. RPM is measured at the motor output shaft.
+    public static double launcherTargetRpm = 3000.0;
+    public static double launcherP = 0.0;
+    public static double launcherI = 0.0;
+    public static double launcherD = 0.0;
+    public static double launcherF = 0.0;
+
+    private long launcherLastUpdateNanos;
+    private double launcherLastRpm;
+    private double launcherIntegralPower;
 
     public void setPinpoint(GoBildaPinpointDriver pinpoint) {
         this.pinpoint = pinpoint;
     }
 
-    public static double launcherP = .65;
-    public static double launcherD = .002;
 
-    public static double setlaunchervelo;
 
     @Override
     public void runOpMode() throws InterruptedException {
@@ -91,8 +90,10 @@ public class LM2_Teleop extends LinearOpMode {
         DcMotorEx turret;
         turret = hardwareMap.get(DcMotorEx.class, "turret");
 
-        Servo ramp;
-        ramp = hardwareMap.get(Servo.class, "ramp");
+        Servo rampR;
+        rampR = hardwareMap.get(Servo.class, "rampR");
+        Servo rampL;
+        rampL = hardwareMap.get(Servo.class, "rampL");
         Servo stopper;
         stopper = hardwareMap.get(Servo.class, "stopper");
 
@@ -126,6 +127,11 @@ public class LM2_Teleop extends LinearOpMode {
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         launcher.setDirection(DcMotorSimple.Direction.REVERSE);
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
+        // Before START: use encoder readings with our own motor power controller.
+        launcher.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        launcher.setPower(0.0);
+        double launcherTicksPerRev = launcher.getMotorType().getTicksPerRev();
+
 
 
 //        LL.start();
@@ -158,6 +164,7 @@ public class LM2_Teleop extends LinearOpMode {
             }
 
             lastReferenceButton = referenceButton;
+
 
 
             double turretDegrees =
@@ -284,14 +291,6 @@ public class LM2_Teleop extends LinearOpMode {
             BR.setPower(BRTargetPower);
             BL.setPower(BLTargetPower);
 
-            //LAUNCHER PIDS
-            double launchererror = targetlauncher - launcherV;
-            double derlauncherThing = launchererror - lastlaunchererror;
-            double launcheroutput = (launchererror * launcherP) + (derlauncherThing * launcherD);
-            lastlaunchererror = launchererror;
-            launcher.setVelocity(launcheroutput);
-            telemetry.addData("Launcher Velo", launcher.getVelocity());
-            targetlauncher = setlaunchervelo;
 
 
 
@@ -321,29 +320,28 @@ public class LM2_Teleop extends LinearOpMode {
             if (sa) {
                 //one action
                 //down
-                ramp.setPosition(.5);
-
+                rampR.setPosition(1);
+                rampL.setPosition(0);
             }
             if (!sa) {
                 //second action
                 //up
-                ramp.setPosition(.84);
-
+                rampR.setPosition(.55);
+                rampL.setPosition(.45);
             }
 
 //button y
             if (gamepad1.a){
-                stopper.setPosition(.97);
-                intake.setPower(.5);
+                stopper.setPosition(.7);
+                intake.setPower(1);
             }
             if (gamepad1.dpad_up) {
                 intake.setPower(0);
             }
 //x launches
             if (gamepad1.x){
-                stopper.setPosition(.85);
+                stopper.setPosition(.5);
                 intake.setPower(1);
-                //targetlauncher = 1000000000;
             }
 
 //button dpad down
@@ -404,9 +402,53 @@ public class LM2_Teleop extends LinearOpMode {
             }
 
 
+            // After START: hold the launcher at its target RPM throughout TeleOp.
+            double targetRpm = launcherTargetRpm;
+            double measuredRpm = launcher.getVelocity() * 60.0 / launcherTicksPerRev;
+            double launcherPower = updateLauncher(targetRpm, measuredRpm);
+            launcher.setPower(launcherPower);
+
+            telemetry.addData("Launcher target RPM", "%.0f", targetRpm);
+            telemetry.addData("Launcher measured RPM", "%.0f", measuredRpm);
+            telemetry.addData("Launcher power", "%.3f", launcherPower);
+
             //possible turret code
             telemetry.addData("Robot X", pinpoint.getPosX(DistanceUnit.INCH));
             telemetry.addData("Robot Y", pinpoint.getPosY(DistanceUnit.INCH));
             telemetry.addData("Robot heading", pinpoint.getHeading(AngleUnit.DEGREES));
             telemetry.update();
-}}}
+        }
+
+        launcher.setPower(0.0);
+    }
+
+    // PIDF helper: inside the class, below runOpMode().
+    private double updateLauncher(double targetRpm, double measuredRpm) {
+        if (targetRpm <= 0.0 || !Double.isFinite(measuredRpm)) {
+            launcherLastUpdateNanos = 0;
+            launcherIntegralPower = 0.0;
+            return 0.0;
+        }
+
+        long now = System.nanoTime();
+        double dt = launcherLastUpdateNanos == 0
+                ? 0.0 : (now - launcherLastUpdateNanos) * 1e-9;
+        double error = targetRpm - measuredRpm;
+        double p = launcherP * error;
+        double d = dt > 0.0 ? -launcherD * (measuredRpm - launcherLastRpm) / dt : 0.0;
+        double f = launcherF * targetRpm;
+
+        // Limit integral growth when the motor output is saturated.
+        double power = p + launcherIntegralPower + d + f;
+        double integralStep = launcherI * error * dt;
+        if (integralStep > 0.0) {
+            launcherIntegralPower += Math.min(integralStep, Math.max(0.0, 1.0 - power));
+        } else {
+            launcherIntegralPower += Math.max(integralStep, Math.min(0.0, -power));
+        }
+
+        launcherLastRpm = measuredRpm;
+        launcherLastUpdateNanos = now;
+        return Math.max(0.0, Math.min(1.0, p + launcherIntegralPower + d + f));
+    }
+}
